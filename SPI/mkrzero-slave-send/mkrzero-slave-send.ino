@@ -21,7 +21,7 @@ const int NBYTES = NWORDS * 2;
 typedef union { uint16_t words[NWORDS]; uint8_t bytes[NBYTES]; } MODEL;
 void format(MODEL &model, char *msg) {
   sprintf(
-    msg, "%d %d %d %d", 
+    msg, "%d %d %d %d",
     model.words[0], model.words[1], model.words[2], model.words[3]
   );
 }
