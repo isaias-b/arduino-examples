@@ -32,6 +32,7 @@ MODEL last;               // used to transfer the last measured sensor data
 bool withinTx = false;    // used to sync loop and avoid data races
 char msg[1024];           // used to create a message sent via serial
 bool needsUpdate = false; // used to print 'msg' only on certain events
+void (*doUpdate)(MODEL&) = updateComplex; // callback function pointer
 bool preload = false;
 
 void setup() {
@@ -146,11 +147,11 @@ void MY_SERCOM_HANDLER() {
   }
 }
 
-void loop() {  
+void loop() {
   if(!withinTx) last = current;
   if(preload && !withinTx) MY_SERCOM->SPI.DATA.reg = last.bytes[0];
   if(needsUpdate) {
-    updateComplex(current);
+    doUpdate(current);
     needsUpdate = false;
     format(current, msg);
     Serial.println(msg);

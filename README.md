@@ -153,14 +153,38 @@ There is an [implementation of this program](./mkrzero-slave-send/mkrzero-slave-
 The slave send program provides several options about what kind of data should be send to the master.
 Available options are:
 
-| expectation | description |
-|-------------|-------------|
-| <img src="./screenshots/slave-send-1_expected-const.png" align="left" width="200px" />          | constant bytes |
-| <img src="./screenshots/slave-send-2_expected-counter.png" align="left" width="200px" />        | simple counters resulting in sawtooth shapes |
-| <img src="./screenshots/slave-send-3_expected-counter-mod512.png" align="left" width="200px" /> | simple counters with smaller mod to better focus on certain bits |
-| <img src="./screenshots/slave-send-4_expected-bit9range.png" align="left" width="200px" />      | ranged counters around the 9th bit that is good to illustrate a problem described below (not solved yet) |
-| <img src="./screenshots/slave-send-5_expected-complex.png" align="left" width="200px" />        | complex datasets including sine wave shapes and real time counter |
+| expectation | callback | description |
+|-------------|----------|-------------|
+| <img src="./screenshots/slave-send-1_expected-const.png" width="200px" />          | `updateConst`      | constant bytes |
+| <img src="./screenshots/slave-send-2_expected-counter.png" width="200px" />        | `updateCounter`    | simple counters resulting in sawtooth shapes |
+| <img src="./screenshots/slave-send-3_expected-counter-mod512.png" width="200px" /> | `updateCounterMod` | simple counters with smaller mod to better focus on certain bits |
+| <img src="./screenshots/slave-send-4_expected-bit9range.png" width="200px" />      | `updateRangeBit9`  | ranged counters around the 9th bit that is good to illustrate a problem described below (not solved yet) |
+| <img src="./screenshots/slave-send-5_expected-complex.png" width="200px" />        | `updateComplex`    | complex datasets including sine wave shapes and real time counter |
 
+Just use the global variable `doUpdate` to setup the desired callback function:
+```
+void (*doUpdate)(MODEL&) = updateComplex; // callback function pointer
+```
+
+This is going to update the `current` `MODEL` instance, as it is passed into the callback within the `loop` routine:
+```
+void loop() {
+  if(!withinTx) last = current;
+  if(preload && !withinTx) MY_SERCOM->SPI.DATA.reg = last.bytes[0];
+  if(needsUpdate) {
+    doUpdate(current);
+    needsUpdate = false;
+    format(current, msg);
+    Serial.println(msg);
+  }
+}
+```
+
+Then reprogram the µC to produce the corresponding output as stated in the images above.
+To reproduce the exact same output as above, use the plot viewer inside the Arduino IDE.
+
+Use the global variable `preload` to switch between using preloading or not.
+A value of `true` activates preloading as it is implemented right now.
 
 ### Master Recieve Program
 
