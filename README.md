@@ -427,3 +427,66 @@ The preloaded data is older than the rest of the trasmitted data.
 This looks like a data race between the ISR and the `loop` function on the slave sender. :facepalm:
 So this problem can be fixed within the slave sender.
 Nailed it!
+
+
+### After Bugfixing
+
+So the last enlightment made me rework the slave sender's code in order to avoid data races.
+The new version uses some alternating buffer.
+The idea is that if the main loop works on the first buffer the second buffer is safe to read from within the interrupt service routine.
+And vice versa.
+
+However, the result is not satisfactory, because the resulting program generates the same output.
+The assumption is that i am not understanding the transfer section in the datasheet correctly.
+Nonetheless, i have reduced complexity and don't take preloading into account for the moment.
+There is an [implementation of this program](./mkrzero-slave-send-fixed/mkrzero-slave-send-fixed.ino) for the `mkrzero`
+
+On the master reciever the code is modified as well.
+It now has the option to physically skip a specified amount of bytes.
+The `samplingDelay` is now using microseconds instead of milliseconds.
+And the `format` method now can be fed with different formats.
+There is an [implementation of this program](./samd21-master-revieve-skipping/samd21-master-revieve-skipping.ino) for the `samd21mini`
+```
+const char* AHEX_FMT = "%04x %04x %04x %04x";
+const char* DEC_FMT  = "%d %d %d %d";
+const char* FORMAT = DEC_FMT;
+
+...
+
+void loop() {
+  digitalWrite(PIN_SPI_SS, LOW);
+  SPI.beginTransaction(settings);
+
+  for(int i=0; i<skippedBytes; i++)
+    SPI.transfer(0xF);
+
+  for(int i=0; i<NBYTES; i++) {
+    delayMicroseconds(2); // play with this parameter
+    int k = (i + NBYTES - byteOffset) % NBYTES;
+    data.bytes[k] = SPI.transfer(data.bytes[k]);
+  }
+  delayMicroseconds(2); // play with this parameter
+  SPI.endTransaction();
+  digitalWrite(PIN_SPI_SS, HIGH);
+
+  format(data, msg);
+  SerialUSB.println(msg);
+
+  delayMicroseconds(samplingDelay);
+}
+```
+
+The following comparison reveals that 3 bytes need to be skipped in order to retrieve consistent data.
+With my basic understanding i would expect there to be only 1 byte of junk when no preloading is being used:
+```
+skippedBytes=0       skippedBytes=1       skippedBytes=2       skippedBytes=3
+01fc 01fd 01fd 01fd  fdfc fd01 fd01 fd01  fd0f fd01 fd01 fd01  01fd 01fd 01fd 01fd
+01fd 01fe 01fe 01fe  fefd fe01 fe01 fe01  fe0f fe01 fe01 fe01  01fe 01fe 01fe 01fe
+01fe 01ff 01ff 01ff  fffe ff01 ff01 ff01  ff0f ff01 ff01 ff01  01ff 01ff 01ff 01ff
+01ff 0200 0200 0200  00ff 0002 0002 0002  000f 0002 0002 0002  0200 0200 0200 0200
+0200 0201 0201 0201  0100 0102 0102 0102  010f 0102 0102 0102  0201 0201 0201 0201
+0201 0202 0202 0202  0201 0202 0202 0202  020f 0202 0202 0202  0202 0202 0202 0202
+0202 0203 0203 0203  0302 0302 0302 0302  030f 0302 0302 0302  0203 0203 0203 0203
+0203 01fc 01fc 01fc  fc03 fc01 fc01 fc01  fc0f fc01 fc01 fc01  01fc 01fc 01fc 01fc
+01fc 01fd 01fd 01fd  fdfc fd01 fd01 fd01  fd0f fd01 fd01 fd01  01fd 01fd 01fd 01fd
+```

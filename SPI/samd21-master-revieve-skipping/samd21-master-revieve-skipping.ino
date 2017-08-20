@@ -9,12 +9,15 @@
 
 const int NWORDS = 4;
 const int NBYTES = NWORDS * sizeof(uint16_t);
+const char* AHEX_FMT = "%04x %04x %04x %04x";
+const char* DEC_FMT  = "%d %d %d %d";
+const char* FORMAT = DEC_FMT;
 
 /// TYPE DEFINITIONS
 typedef union { uint16_t words[NWORDS]; uint8_t bytes[NBYTES]; } MODEL;
 void format(MODEL &model, char *msg) {
   sprintf(
-    msg, "%04x %04x %04x %04x",
+    msg, FORMAT,
     model.words[0], model.words[1], model.words[2], model.words[3]
   );
 }
@@ -23,7 +26,8 @@ void format(MODEL &model, char *msg) {
 SPISettings settings = SPISettings(SPI_TRANSFER_CLOCK_FREQ, MSBFIRST, SPI_MODE0);
 char msg[1024];
 MODEL data;
-int samplingDelay = 100000;
+int samplingDelay = 20000;
+int skippedBytes = 3;
 int byteOffset = 0;
 
 void setup() {
@@ -42,7 +46,7 @@ void loop() {
   for(int i=0; i<NBYTES; i++) {
     delayMicroseconds(2); // play with this parameter
     int k = (i + NBYTES - byteOffset) % NBYTES;
-    data.bytes[k] = SPI.transfer(data.bytes[k]);  
+    data.bytes[k] = SPI.transfer(data.bytes[k]);
   }
   delayMicroseconds(2); // play with this parameter
   SPI.endTransaction();
@@ -50,7 +54,7 @@ void loop() {
 
   format(data, msg);
   SerialUSB.println(msg);
-  
+
   delayMicroseconds(samplingDelay);
 }
 
