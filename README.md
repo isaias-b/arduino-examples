@@ -1,4 +1,10 @@
-Series of arduino examples that emerged during my spare time project 
+Series of arduino examples that emerged during my spare time project.
+I would be very glad if someone knows the answer to the following questions.
+
+# Questions
+
+Why does [this setup](#after-bugfixing) require to skip 3 bytes during each SPI transaction?
+
 
 # SPI
 
@@ -31,6 +37,7 @@ Here are the most important files together with other technical references in co
 | [schematic](https://www.arduino.cc/en/uploads/Main/ArduinoMKRZero-schematic.pdf)                       | [schematic](https://cdn.sparkfun.com/assets/learn_tutorials/4/5/4/sparkfun-atsamd21g-breakout-schematic.pdf) |
 | [pcb backside](http://files.linuxgizmos.com/arduino_mkrzero_back.jpg) (nothing comparable)             | [graphical datasheet](https://cdn.sparkfun.com/assets/learn_tutorials/4/5/4/graphicalDatasheet-Mini.pdf) |
 
+
 ## Program's Origin
 
 Programs that appear in slave configuration are based on one particular source.
@@ -39,10 +46,12 @@ Thanks to this i was able to jump start with a simple slave configuration right 
 I appreciate his code very much :)
 However i found some adaptions useful in general and others necessary to my underlying use case.
 
+
 ## Communication Patterns
 
 These terms will make it easier to identify certain communication patterns.
 At least during debugging when things are simplified for trouble shooting.
+
 
 ### Unidirectional Slave Send and Master Recieve
 
@@ -53,6 +62,7 @@ Furthermore, there is a second program to form the **slave sender**'s counter pa
 Note that these terms only apply to unidirectional communication patterns.
 Well, or at least to those which have a clear focus to it.
 
+
 ### Bidirectional Loopback (TODO)
 
 Within bidirectional communication patterns there is this notion of a **loopback** program.
@@ -60,9 +70,11 @@ Data that arrives is just send back to its sender.
 This can be implemented on both; a master and a slave device.
 That is useful for debugging certain problems as well and is going to be included later on.
 
+
 ### Forwarder (TODO)
 
 TODO
+
 
 ## Wiring and Muxing
 | wiring + supply | wiring only | master slave |
