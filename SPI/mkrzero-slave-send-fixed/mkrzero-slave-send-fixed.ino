@@ -212,8 +212,8 @@ void updateRangeBit9(MODEL &model) {
   uint16_t range = 1 << 3;
   uint16_t offset = bit9 - range / 2;
   model.words[0] = offset + counter % range;
-  model.words[1] = offset + counter % range;
-  model.words[2] = offset + counter % range;
+  model.words[1] = 20;
+  model.words[2] = 30;
   model.words[3] = offset + counter % range;
   ++counter;
 }

@@ -490,3 +490,8 @@ skippedBytes=0       skippedBytes=1       skippedBytes=2       skippedBytes=3
 0203 01fc 01fc 01fc  fc03 fc01 fc01 fc01  fc0f fc01 fc01 fc01  01fc 01fc 01fc 01fc
 01fc 01fd 01fd 01fd  fdfc fd01 fd01 fd01  fd0f fd01 fd01 fd01  01fd 01fd 01fd 01fd
 ```
+
+The data above is produced with a modified version of `updateRangeBit9`.
+It was modified so that all 4 words had the same data within the transaction.
+After turning back the code to its original state, the output was ordered as expected.
+Therefore, no `byteOffset` is required anymore.
