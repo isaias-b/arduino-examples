@@ -15,7 +15,7 @@
 #define MY_GCM_SERCOM_CORE  GCM_SERCOM0_CORE
 
 const int NWORDS = 4;
-const int NBYTES = NWORDS * 2;
+const int NBYTES = NWORDS * sizeof(uint16_t);
 
 /// TYPE DEFINITIONS
 typedef union { uint16_t words[NWORDS]; uint8_t bytes[NBYTES]; } MODEL;
@@ -32,7 +32,7 @@ MODEL last;               // used to transfer the last measured sensor data
 bool withinTx = false;    // used to sync loop and avoid data races
 char msg[1024];           // used to create a message sent via serial
 bool needsUpdate = false; // used to print 'msg' only on certain events
-void (*doUpdate)(MODEL&) = updateComplex; // callback function pointer
+void (*doUpdate)(MODEL&) = updateConst; // callback function pointer
 bool preload = false;
 
 void setup() {

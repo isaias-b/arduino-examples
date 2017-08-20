@@ -8,7 +8,7 @@
 #define SPI_TRANSFER_CLOCK_FREQ SPI_TRANSFER_CLOCK_FREQ_8
 
 const int NWORDS = 4;
-const int NBYTES = NWORDS * 2;
+const int NBYTES = NWORDS * sizeof(uint16_t);
 
 /// TYPE DEFINITIONS
 typedef union { uint16_t words[NWORDS]; uint8_t bytes[NBYTES]; } MODEL;
@@ -18,7 +18,6 @@ void format(MODEL &model, char *msg) {
     model.words[0], model.words[1], model.words[2], model.words[3]
   );
 }
-typedef union { uint16_t val; struct { uint8_t lsb; uint8_t msb; }; } WORD;
 
 /// GLOBAL VARIABLES
 SPISettings settings = SPISettings(SPI_TRANSFER_CLOCK_FREQ, MSBFIRST, SPI_MODE0);

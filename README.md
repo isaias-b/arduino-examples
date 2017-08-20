@@ -7,6 +7,7 @@ An [Arduino MKRZero](https://store.arduino.cc/arduino-mkrzero) and
   a [SparkFun SAMD21 Mini Breakout](https://github.com/sparkfun/SAMD21_Mini_Breakout).
 I will reference these boards for simplicity, `mkrzero` and `samd21mini` respectively.
 Regard this section as a collection of template programs for certain communication patterns.
+This is also used to document certain problems as i progress implementing the project.
 It is also a little comparison between both boards, but mainly focuses on the communication part.
 But lets start with a small collection of references for both boards.
 
@@ -190,13 +191,239 @@ A value of `true` activates preloading as it is implemented right now.
 
 There is an [implementation of this program](./SPI/samd21-master-revieve/samd21-master-revieve.ino) for the `samd21mini`.
 The master recieve program provides several options.
-One option controls how fast data should be gathered from the slave by specifying a `samplingDelay`.
-The other option controls an `offset` for the incoming bytes.
-This allows to interpret the first incoming byte as the second byte or third byte and s.o..
+One option controls how fast data should be gathered from the slave by specifying a `samplingDelay` in milliseconds.
+The other option controls an `byteOffset` for the incoming bytes.
+With this `byteOffset` it is possible to interpret the first incoming byte as the second byte or third byte and s.o..
+These options are controlled through the code below.
 ```
 int samplingDelay = 20;
-int offset = 1;
+int byteOffset = 1;
 ```
 
+If everything works as expected the recieved data in the master corresponds exactly to the data being sent from the slave.
 
-If everything works as expected the recieved data in the master corresponds exactly to the data being generated in the slave.
+
+## Trouble Shooting
+
+Only in rare cases everything works as expected on the first try.
+Here is a summary of problems that emerged during the implementation.
+Some of them have already been fixed, others are _worked around_ ;) and some are still unsolved yet.
+
+
+### `updateConst`
+
+```
+void updateConst(MODEL &model) {
+  model.words[0] = 10;
+  model.words[1] = 20;
+  model.words[2] = 30;
+  model.words[3] = 40;
+}
+```
+
+Let's start simple.
+The `updateConst` should send 4x16 bits representing 4 constant values: `10`, `20`, `30`, `40`.
+
+| expectation | result |
+|-------------|--------|
+| <img src="./screenshots/slave-send-1_expected-const.png" />  | <img src="./screenshots/master-rx-1_0-byte-offset.png" /> |
+
+The plot view is updated line by line and it renders the incoming data space separated.
+The order determines the color mapping.
+So it chooses blue for the first entry, red for the second and s.o..
+Comparing the generated data with the recieved data reveals that the coloring and thus the ordering is wrong.
+
+So, the master recieves 40 10 20 30 instead of 10 20 30 40.
+To mitigate this, it is possible to play around with the `preload` on the slave and the `byteOffset` on the master.
+First lets compare different offsets:
+
+| `bytesOffset=0` | `bytesOffset=1` | `bytesOffset=2` |
+|-----------------|-----------------|-----------------|
+| <img src="./screenshots/master-rx-1_0-byte-offset.png" /> | <img src="./screenshots/master-rx-1_1-byte-offset.png" /> | <img src="./screenshots/master-rx-1_2-byte-offset.png" /> |
+
+Since the each data value is 16 bits long an offset of 1 misalings the data.
+An offset of 2 seems to enable the master to correctly interpret the data.
+As the coloring indicates, blue comes first and is at value `10`.
+
+Now examining the `preload` option in the slave sender reveals that it reduces the offset by 1.
+So to reproduce the desired output, it is necessary to set the offset to 1 instead of 2.
+For the moment, the preloading seems to work as expected.
+But this does not explain why there was an offset of 2 bytes on the in the first place.
+So this requires more investigation.
+
+
+### `updateCounter`
+
+```
+void updateCounter(MODEL &model) {
+  static uint16_t counter = 0;
+  model.words[0] = counter * 1;
+  model.words[1] = counter * 2;
+  model.words[2] = counter * 3;
+  model.words[3] = counter * 4;
+  ++counter;
+}
+```
+
+This produces 4 counter values which are updated each time being requested.
+The first counter increments by 1, the second by 2, the third by 3 and the fourth by 4.
+
+| expectation | result with `preload=true` & `byteOffset=1` |
+|-------------|---------------------------------------------|
+| <img src="./screenshots/slave-send-2_expected-counter.png" />  | <img src="./screenshots/master-rx-2_counter-with-spikes.png" /> |
+
+Huh, now these strange spikes appeared on first and last counter.
+Switching `preload=false` and `byteOffset=2` removes the spikes.
+This somewhat indicates that there might be an issue with the preloading as it is implemented.
+Or maybe it is still the strange offset by 1 error discovered within [`updateConst`](#updateConst).
+
+The pattern how the spikes appear is very interesting.
+Maybe it is possible to nail the problem down, examining this in more detail.
+
+
+### `updateCounterMod`
+
+```
+void updateCounterMod(MODEL &model) {
+  static uint16_t counter = 0;
+  uint16_t mod = 1 << 10;
+  model.words[0] = counter * 1 % mod;
+  model.words[1] = counter * 2 % mod;
+  model.words[2] = counter * 3 % mod;
+  model.words[3] = counter * 4 % mod;
+  ++counter;
+}
+```
+
+This produces the same 4 counter values as in [`updateCounter`](#updateCounter) but applies mod 512 after incrementing.
+The domain of the counters are only using 9 of the 16 bits this way and produce sawtooth shapes with different frequencies.
+
+| expectation | result with `preload=true` & `byteOffset=1` |
+|-------------|---------------------------------------------|
+| <img src="./screenshots/slave-send-3_expected-counter-mod512.png" />  | <img src="./screenshots/master-rx-3_spikes-mod512b.png" /> |
+
+Spikes are still apearing in this constellation.
+Again, switching to `preload=false` and `byteOffset=2` removes the spikes.
+
+However, now it is possible to track down the behaviour more precisely due to the restricted domain.
+Here are some observations:
+- The blue and yellow line correspond to the first and last data value.
+- The spike at the blue line seems to appear at a value of 256 which is at around the 8th bit.
+- The spike of the yellow line appears at a rate 4 times faster than the blue line.
+- The blue spikes jump up, where the yellow spikes jump down.
+
+There are still some thoughts about this jumping up and down behaviour.
+I will going to investigate this jumps' directions with another setup later on.
+So let's skip that for now.
+Furthermore, let's also skip the frequency behaviour about the fourth counter being 4 times faster as well.
+For now let's focus on the problem domain around the 8th bit of the first and last values.
+
+
+### `updateRangeBit9`
+
+```
+void updateRangeBit9(MODEL &model) {
+  static uint16_t counter = 0;
+  uint16_t bit9 = 1 << 9;
+  uint16_t range = 1 << 6;
+  uint16_t offset = bit9 - range / 2;
+  model.words[0] = offset + counter % range;
+  model.words[1] = 20;
+  model.words[2] = 30;
+  model.words[3] = offset + counter % range;
+  ++counter;
+}
+```
+
+This reproduces the first and last of the 4 counter values as in [`updateCounterMod`](#updateCounterMod) but adds a number offset to them.
+With this it is possible to focus on the spike parts.
+The other 2 values at position 2 and 3 are just constant values 20 and 30.
+
+| expectation | result with `preload=true` & `byteOffset=1` |
+|-------------|---------------------------------------------|
+| <img src="./screenshots/slave-send-4_expected-bit9range.png" />  | <img src="./screenshots/master-rx-4_detailed-spikes.png" /> |
+
+Alternatively modify the code to use a range of just 3 bits instead of 6.
+Furthermore, use the same counter value at all 4 positions:
+```
+void updateRangeBit9(MODEL &model) {
+  static uint16_t counter = 0;
+  uint16_t bit9 = 1 << 9;
+  uint16_t range = 1 << 3;
+  uint16_t offset = bit9 - range / 2;
+  model.words[0] = offset + counter % range;
+  model.words[1] = offset + counter % range;
+  model.words[2] = offset + counter % range;
+  model.words[3] = offset + counter % range;
+  ++counter;
+}
+```
+
+With this reduced range it is possible to inspect plot view again but now together with the serial monitor output:
+
+| expectation | result with `preload=true` & `byteOffset=1` |
+|-------------|---------------------------------------------|
+| <img src="./screenshots/slave-send-4_expected-bit9range3.png" />  | <img src="./screenshots/master-rx-4_detailed-spikes3.png" /> |
+
+```
+508 508 508 508   508 509 509 509
+509 509 509 509   509 510 510 510
+510 510 510 510   510 511 511 511
+511 511 511 511   767 512 512 256
+512 512 512 512   512 513 513 513
+513 513 513 513   513 514 514 514
+514 514 514 514   514 515 515 515
+515 515 515 515   259 508 508 764
+508 508 508 508   508 509 509 509
+```
+
+Well that is interesting.
+Seems like the first value is always belonging to the previous cycle after interpreting the incoming data.
+Let's toggle the output format from decimal to hex on the master reciever.
+With this change it should be possible to see exactly where the bits are flowing to:
+```
+void format(MODEL &model, char *msg) {
+  sprintf(
+    msg, "%d %d %d %d",  // <-- replaced 'd' with 'x'
+    model.words[0], model.words[1], model.words[2], model.words[3]
+  );
+}
+```
+
+This produces the following output:
+```
+508 508 508 508   508 509 509 509   1fc 1fd 1fd 1fd
+509 509 509 509   509 510 510 510   1fd 1fe 1fe 1fe
+510 510 510 510   510 511 511 511   1fe 1ff 1ff 1ff
+511 511 511 511   767 512 512 256   2ff 200 200 100
+512 512 512 512   512 513 513 513   200 201 201 201
+513 513 513 513   513 514 514 514   201 202 202 202
+514 514 514 514   514 515 515 515   202 203 203 203
+515 515 515 515   259 508 508 764   103 1fc 1fc 2fc
+508 508 508 508   508 509 509 509   1fc 1fd 1fd 1fd
+```
+In line 511 it starts to get interesting which corresponds a hex value of 1ff.
+The next value should be 512 with a corresponding hex value of 200.
+However, it gets messed up and produces a 767 with a corresponding hex value of 2ff.
+
+So the LSB of the first value belongs to the previous cycle but the MSB is correct.
+In contrast to that the MSB of the last value seems to belong to the previous cycle but the LSB is correct.
+Without the `byteOffset=1` it should be possible to see this even clearer:
+```
+508 508 508 508   508 509 509 509   1fc 1fd 1fd 1fd   fc01 fd01 fd01 fd01
+509 509 509 509   509 510 510 510   1fd 1fe 1fe 1fe   fd01 fe01 fe01 fe01
+510 510 510 510   510 511 511 511   1fe 1ff 1ff 1ff   fe01 ff01 ff01 ff01
+511 511 511 511   767 512 512 256   2ff 200 200 100   ff01 0002 0002 0002
+512 512 512 512   512 513 513 513   200 201 201 201   0002 0102 0102 0102
+513 513 513 513   513 514 514 514   201 202 202 202   0102 0202 0202 0202
+514 514 514 514   514 515 515 515   202 203 203 203   0202 0302 0302 0302
+515 515 515 515   259 508 508 764   103 1fc 1fc 2fc   0302 fc01 fc01 fc01
+508 508 508 508   508 509 509 509   1fc 1fd 1fd 1fd   fc01 fd01 fd01 fd01
+```
+
+Indeed! Only the first 16 bits are leaping one cycle behind.
+This seems to be a bug in the update mechanic.
+The preloaded data is older than the rest of the trasmitted data.
+This looks like a data race between the ISR and the `loop` function on the slave sender. :facepalm:
+So this problem can be fixed within the slave sender.
+Nailed it!
