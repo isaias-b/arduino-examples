@@ -34,6 +34,7 @@ const int NROWS  = LEN(dataset);
 /// GLOBAL VARIABLES
 char msg[1024];
 bool isWithinTx = false;        // syncs loop and ISR to avoid data races
+bool preload = true;
 
 void loop() {
   static bool ledState = false;
@@ -95,7 +96,7 @@ void setup() {
   MY_SERCOM->SPI.CTRLB.bit.RXEN = 0x1;      //Enable Receiver
   MY_SERCOM->SPI.CTRLB.bit.SSDE = 0x1;      //Slave Selecte Detection Enabled
   MY_SERCOM->SPI.CTRLB.bit.CHSIZE = 0;      //character size 8 Bit
-  MY_SERCOM->SPI.CTRLB.bit.PLOADEN = 0x0;   //Disable Preload Data Register
+  MY_SERCOM->SPI.CTRLB.bit.PLOADEN = preload; //set Preload Data Register Bit
   while (MY_SERCOM->SPI.SYNCBUSY.bit.CTRLB);  
   
   //Set up SPI interrupts
@@ -127,7 +128,7 @@ void MY_SERCOM_HANDLER() {
   if(intflag.bit.SSL)
   {
     isWithinTx = true;
-    bytesPos = 0;
+    bytesPos = preload ? 1 : 0;
     MY_SERCOM->SPI.INTFLAG.bit.SSL = 1;             //clear SSL interrupt
   }
 
@@ -146,6 +147,7 @@ void MY_SERCOM_HANDLER() {
     isWithinTx = false;
     rowPos = (rowPos + 1) % NROWS;
     row = &dataset[rowPos];
+    if(preload) MY_SERCOM->SPI.DATA.reg = row->bytes[0];
   }
   
   // This flag is set when DATA is empty and ready for new data to transmit.

@@ -441,23 +441,23 @@ So this problem can be fixed within the slave sender.
 Nailed it!
 
 
-### After Bugfixing
+### Resync and Skip
 
 So the last enlightment made me rework the slave sender's code in order to avoid data races.
-The new version uses some alternating buffer.
+The new version uses some alternating buffer to synchronize data exchange.
 The idea is that if the main loop works on the first buffer the second buffer is safe to read from within the interrupt service routine.
 And vice versa.
 
-However, the result is not satisfactory, because the resulting program generates the same output.
+However, the result is not satisfactory, because the resulting program still generates the same output.
 The assumption is that i am not understanding the transfer section in the datasheet correctly.
 Nonetheless, i have reduced complexity and don't take preloading into account for the moment.
-There is an [implementation of this program](./mkrzero-slave-send-fixed/mkrzero-slave-send-fixed.ino) for the `mkrzero`
+There is an [implementation of this program](./mkrzero-slave-send-fixed/mkrzero-slave-send-fixed.ino) for the `mkrzero`.
 
 On the master reciever the code is modified as well.
 It now has the option to physically skip a specified amount of bytes.
 The `samplingDelay` is now using microseconds instead of milliseconds.
 And the `format` method now can be fed with different formats.
-There is an [implementation of this program](./samd21-master-revieve-skipping/samd21-master-revieve-skipping.ino) for the `samd21mini`
+There is an [implementation of this program](./samd21-master-revieve-skipping/samd21-master-revieve-skipping.ino) for the `samd21mini`.
 ```
 const char* AHEX_FMT = "%04x %04x %04x %04x";
 const char* DEC_FMT  = "%d %d %d %d";
@@ -507,3 +507,39 @@ The data above is produced with a modified version of `updateRangeBit9`.
 It was modified so that all 4 words had the same data within the transaction.
 After turning back the code to its original state, the output was ordered as expected.
 Therefore, no `byteOffset` is required anymore.
+
+
+### Static Dataset
+
+The last approach revealed that 3 bytes needed to be skipped physically in order to recieve the data correctly.
+But what a very strange result.
+Previous obvervations required to introduce a software `byteOffset` of 2 instead of 3.
+To reduce the likelihood of errors i decided to let the slave just send a fixed dataset.
+A two dimensional array with bounds 8 x 8 should suffice to reproduce the previous dataset.
+This dataset can be statically compiled into the program itself.
+Take a look at the code below to see a representation of this dataset using `uint8_t` instances for each element.
+There is an [implementation of this program](./mkrzero-slave-send-static/mkrzero-slave-send-static.ino) for the `mkrzero`.
+
+```
+#define LEN(arr) ((int) (sizeof (arr) / sizeof (arr)[0]))
+
+const int NBYTES = 8;
+typedef uint8_t DATASET[][NBYTES];
+const DATASET bytes = {
+  { 0x01, 0xfc,   0x00, 0x14,   0x00, 0x1e,   0x01, 0xfc },
+  { 0x01, 0xfd,   0x00, 0x14,   0x00, 0x1e,   0x01, 0xfd },
+  { 0x01, 0xfe,   0x00, 0x14,   0x00, 0x1e,   0x01, 0xfe },
+  { 0x01, 0xff,   0x00, 0x14,   0x00, 0x1e,   0x01, 0xff },
+  { 0x02, 0x00,   0x00, 0x14,   0x00, 0x1e,   0x02, 0x00 },
+  { 0x02, 0x01,   0x00, 0x14,   0x00, 0x1e,   0x02, 0x01 },
+  { 0x02, 0x02,   0x00, 0x14,   0x00, 0x1e,   0x02, 0x02 },
+  { 0x02, 0x03,   0x00, 0x14,   0x00, 0x1e,   0x02, 0x03 },
+};
+const int NROWS  = LEN(bytes);
+```
+
+My assumption was that the master should recieve the same data when switching the slave to use this program.
+However, the data seems to be misaligned again.
+It turns out that now only 2 bytes remain that require to be skipped.
+Reducing the number of `skippedBytes` to 2 fixes the alignment again.
+So there must be another bug in the code causing this issue.

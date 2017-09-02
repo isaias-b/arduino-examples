@@ -16,7 +16,8 @@ SPISettings settings = SPISettings(SPI_TRANSFER_CLOCK_FREQ, MSBFIRST, SPI_MODE0)
 char msg[1024];
 MODEL data;
 int samplingDelay = 200000;
-int skippedBytes = 2;
+int skippedBytes = 1;
+bool shouldPrintValues = true;
 
 void setup() {
   SerialUSB.begin(2000000);
@@ -38,9 +39,13 @@ void loop() {
   SPI.endTransaction();
   digitalWrite(PIN_SPI_SS, HIGH);
 
-  printBytes(data);
-  SerialUSB.print(" -> ");
-  printWords(data);
+  if(shouldPrintValues)
+    printValues(data);
+  else {
+    printBytes(data);
+    SerialUSB.print(" -> ");
+    printWords(data);
+  }
   SerialUSB.println();
 
   delayMicroseconds(samplingDelay);
@@ -56,6 +61,13 @@ void printBytes(MODEL &row) {
 void printWords(MODEL &row) {
   for(int i=0; i<NWORDS; i++) {
     sprintf(msg, "%04x ", row.words[i]);
+    SerialUSB.print(msg);
+  }
+}
+
+void printValues(MODEL &row) {
+  for(int i=0; i<NWORDS; i++) {
+    sprintf(msg, "%d ", row.words[i]);
     SerialUSB.print(msg);
   }
 }
