@@ -1,0 +1,15 @@
+#!/bin/sh
+# configures a ready to use recurring update scenario
+
+# select spi device:
+# - spidev0.0, spidev0.1
+# - spidev1.0, spidev1.1, spidev1.2
+# to see how to activate other devices than the default
+# spidev0.0 and spidev0.1 take a look at this reference
+# http://terminal28.blogspot.de/2016/05/enabling-spi1-on-raspberry-pi-bzero23.html
+
+device=/dev/spidev0.1
+delay=20
+clock=2000000
+
+watch -n 1 -d ./spidev_test -D $device -d $delay -s $clock

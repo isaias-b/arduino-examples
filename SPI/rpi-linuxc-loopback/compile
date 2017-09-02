@@ -1,0 +1,3 @@
+#!/bin/sh
+# compiles the sources
+gcc -o spidev_test spidev_test.c
