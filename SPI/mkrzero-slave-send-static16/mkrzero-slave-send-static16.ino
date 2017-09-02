@@ -34,16 +34,20 @@ const int NROWS  = LEN(dataset);
 /// GLOBAL VARIABLES
 char msg[1024];
 bool isWithinTx = false;        // syncs loop and ISR to avoid data races
-bool preload = true;
+bool preload = false;
+bool printSerial = false;
 
 void loop() {
   static bool ledState = false;
   static uint8_t rowPos = 0;
 
-  printWords(dataset[rowPos]);
-  Serial.print(" -> ");
-  printBytes(dataset[rowPos]);  
-  Serial.println();
+  if(printSerial) {
+    printWords(dataset[rowPos]);
+    Serial.print(" -> ");
+    printBytes(dataset[rowPos]);
+    Serial.println();
+  }
+
   rowPos = (rowPos + 1) % NROWS;
 
   digitalWrite(LED_BUILTIN, ledState);
