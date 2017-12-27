@@ -1,0 +1,3 @@
+#!/bin/bash
+
+gcc -o .bin/run -std=c99 main.c
