@@ -1,9 +1,15 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>     //Used for UART
 #include <fcntl.h>      //Used for UART
 #include <termios.h>    //Used for UART
+
+// to get more information open a shell and call
+// $ man setpriority
+#include <sys/time.h>
+#include <sys/resource.h>
 
 //At bootup, pins 8 and 10 are already set to UART0_TXD, UART0_RXD (ie the alt0 function) respectively
 //The flags (defined in fcntl.h):
@@ -29,10 +35,19 @@
 //  PARENB - Parity enable
 //  PARODD - Odd parity (else even)
 
+#define BUFFER_SIZE 2048
+#define RUN_INFINITELY -1
+
+static volatile int running = 1;
+void process_step(int);
+void int_signal_handler(int);
+
 int main(int argc, char *argv[]) {
   int fd = -1;
-  long read_bytes = 5000;
+  long read_bytes = RUN_INFINITELY;
   char *port = "/dev/ttyACM1";
+  unsigned char rx_buffer[BUFFER_SIZE];
+  setpriority(PRIO_PROCESS, 0, -20);
 
   if (argc > 1) {
     printf("overwrite default port %s with %s\n", port, argv[1]);
@@ -43,6 +58,10 @@ int main(int argc, char *argv[]) {
     char *end;
     long b2r = strtol(argv[2], &end, 10);
     if (errno == ERANGE) errno = 0;
+    else if(b2r < 0) {
+      printf("overwrite default #bytes-to-read %ld with RUN_INFINITELY\n", read_bytes);
+      read_bytes = RUN_INFINITELY;
+    }
     else {
       printf("overwrite default #bytes-to-read %ld with %ld\n", read_bytes, b2r);
       read_bytes = b2r;
@@ -63,27 +82,37 @@ int main(int argc, char *argv[]) {
   options.c_lflag = 0;
   tcflush(fd, TCIFLUSH);
   tcsetattr(fd, TCSANOW, &options);
-
-  printf("now reading %ld bytes...\n", read_bytes);
-  for (long i = 0; i < read_bytes; i++) {
-    if (fd != -1) {
-      unsigned char rx_buffer[256];
-      int rx_length = read(fd, (void*)rx_buffer, 255);
-      if (rx_length < 0) {
-        printf("no bytes to read (error)\r");
-      } else if (rx_length == 0) {
-        printf("zero bytes to read (empty)\r");
-      } else {
-        rx_buffer[rx_length] = '\0';
-        printf("%s", rx_buffer);
-      }
-    } else {
-      printf("nothing to read\n");
-    }
+  if(read_bytes == RUN_INFINITELY) {
+    printf("now reading bytes...\n");
+    signal(SIGINT, int_signal_handler);
+    while (running) process_step(fd);
+  } else {
+    printf("now reading %ld bytes...\n", read_bytes);
+    for (long i = 0; i < read_bytes; i++) process_step(fd);
   }
-
   printf("\nclosing port %s...\n", port);
   close(fd);
 
   return 0;
+}
+
+void process_step(int fd) {
+  static unsigned char rx_buffer[BUFFER_SIZE];
+  if (fd != -1) {
+    int rx_length = read(fd, (void*)rx_buffer, BUFFER_SIZE);
+    if (rx_length < 0) {
+      printf("no bytes to read (error)\r");
+    } else if (rx_length == 0) {
+      printf("zero bytes to read (empty)\r");
+    } else {
+      rx_buffer[rx_length] = '\0';
+      printf("%s", rx_buffer);
+    }
+  } else {
+    printf("nothing to read\n");
+  }
+}
+
+void int_signal_handler(int signal) {
+  running = 0;
 }
