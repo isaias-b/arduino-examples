@@ -1,10 +1,30 @@
-The purpose of this program is to provide a benchmarking platform for several different use case.
+The purpose of [this program](./mkrzero-timer-adc.ino) is to provide a benchmarking platform for several different use case.
 It has been useful to stress certain scenarios without simplifiying too much from a real application.
-This program compiles to the arduino mkrzero.
+
+# Benchmark
+```
+|           | DIAG   | DIAG  |
+|-----------|--------|-------|
+|           | no     | yes   |
+| SPI       | 23500  | 16000 |
+| UART bin  | 20000  | 17000 |
+| UART      |  4400  |  3000 |
+```
+Results gathered using a MacBook with OSX and an arduino mkrzero.
+The mkrzero ran this program and the mac ran the [`serial/rpi-uart-reciever`](../../serial/rpi-uart-reciever/README.md) program.
+
+**HELP Apreciated**
+However the targeting rpi wasn't capable to math the same results.
+So this is still an open todo.
+I am still trying to figure out where the bottleneck resides.
+
+# Anatomy
+This program compiles to the arduino `mkrzero`.
 The program gathers analog sensor information and streams it continously to its reciever fast as possible.
 The program consists of two sub programs: main and timer interrupt.
 Both sub programs communicate with a ring buffer.
 Target data is acquired from the ADC signal lines.
+
 
 # Timer Interrupt Program
 A timer is used to maintain accurate data acquisition.
@@ -12,7 +32,7 @@ The timer can be adjuste with this parameter:
 ```
 const int sampleRate = 3700;
 ```
-All timer specific settings are made within file `Timer.h`.
+All timer specific settings are made within file [`Timer.h`](./Timer.h).
 The header provides a `namespace Timer` to access the relevant timer specifics.
 Only the timer interrupt routine is required to be passed into the `Timer`.
 Take a look into `setup` to see this:
@@ -41,7 +61,7 @@ For details jump into `pushUART` to how its done.
 
 # Ring Buffer
 The current ring buffer implementation is a generic one using a template with compile time static size.
-All ring buffer specifics are found in file `RingBuf.h`.
+All ring buffer specifics are found in file [`RingBuf.h`](./RingBuf.h).
 The signature of the type is as follows:
 ```
 template<typename T, int S> class RingBuf { ... };
@@ -52,14 +72,16 @@ RingBuf<MODEL, bufferCapacity> rbuf;
 ```
 Only the `main` and the `timer` interrupt program access it from file `mkrzero-timer-adc`.
 
+
 # Data Model
-The data model is defined in file `Data.h`.
+The data model is defined in file [`Data.h`](./Data.h).
 Data model is customizable and can be extended to an extended version containing useful diagnostic information.
 There is a compiler flag to control this:
 ```
 #define USE_DIAGNOSTICS
 ```
 There are two spots which need to change to make this work.
+
 
 ## Data Definition
 The data definition uses an enumeration `enum Col` for all pieces of content:
@@ -70,13 +92,15 @@ The data definition uses an enumeration `enum Col` for all pieces of content:
 ```
 These colums will not be included when the flag is missing.
 
+
 ## Data Acquisition
 The other part which requires special care is the data acquisition.
 All the data acquisition is done synchronously during the timer interrupt.
 Timings are setup carefully to suit the requirements at hand.
 Data acquisition takes place in `measure` routine.
 
-# Data
+
+## Data
 The target data is acquired as follows:
 ```
 m.words[Col::Id] = ++counter % 256;
@@ -102,8 +126,9 @@ These are:
 - the time how long the interupt routine took since the last interrupt.
 - the time how long the sample acquisition took within this interrupt.
 
+
 # ADC
-All analog specifics are defined inside file `ADC.h` and exposed using the `namespace Analog`.
+All analog specifics are defined inside file [`ADC.h`](./ADC.h) and exposed using the `namespace Analog`.
 Initialization occurs within `setup` using `Analog::setup`.
 Data can be fetched using `Analog::read()`.
 This is an optimized version of analog reading to meet the requirements at hand.
