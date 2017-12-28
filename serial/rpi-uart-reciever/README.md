@@ -63,7 +63,7 @@ $ ls /dev/ttyACM*
 /dev/cu.usbmodem1411
 ```
 
-To tell the program to stop after a fixed amount of bytes, e.g. 20 bytes,  and use a different device name call:
+To tell the program to stop after a fixed amount of bytes, e.g. 20 bytes, and to use a different device name, call:
 ```
 $ run /dev/cu.usbmodem1411 20
 overwrite default port /dev/ttyACM1 with /dev/cu.usbmodem1411
@@ -109,6 +109,7 @@ What influences the throughput?
 
 A small comparison between: mac and rpi.
 The mkrzero serves data with `3300` samples per second.
+
 |              | mac  | rpi  |
 |--------------|------|------|
 |fast enough   | yes  | no   |
