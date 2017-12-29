@@ -3,14 +3,35 @@ It has been useful to stress certain scenarios without simplifiying too much fro
 
 # Anatomy
 This program compiles to the `rpi` but is also compatible to `macosx`.
-Connection is tried to be established only at the beginnning of the program.
-Later it tries to read either an amount of bytes.
+Connection is tried to be established only at the beginnning of the program and closed on quit.
+The program contains 2 sub programs which is controled via the precompiler flag `USE_BPS`.
+Default is to compile for run mode when the flag is not set.
+
+## run mode
+It tries to read and print an amount of bytes.
 Amount of bytes can be setup in two ways: infinite and fixed.
-To cancel infinite use `CTRL`+`C` .
+To cancel infinite mode use `CTRL`+`C`.
+
+## bps mode
+It tries to measure the throughput for an amount of bytes.
+Amount of bytes can be setup in two ways: infinite and fixed.
+To cancel infinite mode use `CTRL`+`C`.
+
+**Example Execution**
+```
+$ bps /dev/cu.usbmodem1411
+overwrite default port /dev/ttyACM1 with /dev/cu.usbmodem1411
+try opening serial port /dev/cu.usbmodem1411...
+now reading bytes...
+stats:    rate = 62.5kB/s    time = 62s    bytes = 3874kB    zeros=0    cpurate = 740.0kB/s    cputime =  5s
+closing port /dev/cu.usbmodem1411...
+```
+
+Note that the output updates the printed `stats` line inplace until the program quits.
 
 # Quickstart
 
-Checkout the repository folder, cd to the programs folder and then compile the code:
+Checkout the repository folder, `cd` to the programs folder and then compile the code:
 ```
 git clone git@github.com:isaias-b/arduino-examples.git
 cd serial/rpi-uart-reciever
@@ -45,19 +66,19 @@ closing port /dev/cu.usbmodem1411...
 **Don't forget to call `CTRL`+`C` to quit**
 
 
-The upper output states that no device is connected to `/dev/ttyACM1` which is the current default in the program.
-If in fact there is no device connected onto `/dev/ttyACM1` proceed.
+The upper output states that no device is connected to `/dev/ttyACM1`, which is the current default in the program.
+If in fact there is no device connected onto `/dev/ttyACM1` proceed to [Interpretation](#interpretation).
 Connect your `mkrzero` or any other UART over USB board, which runs some sort of sender program.
 A program like the [ringbuf/mkrzero-timer-adc](../../ringbuf/mkrzero-timer-adc/README.md).
 Once its uploaded and hooked up lookup the device name on your machine.
 
-For arduino like boards on the mac use:
+For arduino like boards on `macosx` use:
 ```
 $ ls /dev/cu.usb*
 /dev/cu.usbmodem1411
 ```
 
-On the rpi use:
+On `rpi` use:
 ```
 $ ls /dev/ttyACM*
 /dev/cu.usbmodem1411
@@ -107,7 +128,7 @@ In such a case it will predominantly raise until it reaches the static buffer li
 How fast can the reciever pull out the data over the UART signal lines from the senders device buffers?
 What influences the throughput?
 
-A small comparison between: mac and rpi.
+A small comparison between: `macosx` and `rpi`.
 The mkrzero serves data with `3300` samples per second.
 
 |              | mac  | rpi  |
@@ -205,7 +226,7 @@ now reading 500 bytes...
 187 29
 closing port /dev/ttyACM1...
 ```
-However, the rpi is not able to even reduce the buffer size once within the first 5000 bytes being requested.
+However, the `rpi` is not able to even reduce the buffer size once within the first 5000 bytes, as requested above.
 
 And this is reproducible for at least 10 calls, all producing similar or even worse results:
 ```
@@ -217,8 +238,8 @@ $ run /dev/ttyACM1 | head -n -4 | tail -n 5
 176 26  2369 2369 2369
 ```
 
-Even when compiled with `-O3` and using `setpriority`.
-Although, i must admit that i'm a newbie to kind of otpimisations and maybe there is something obvious missing here.
+Even when compiled with  `gcc -O3` and using `setpriority` to manipulate the processes priority at runtime.
+Although, i must admit that i'm a newbie to this kind of otpimisations and maybe there is something obvious missing here.
 
 The CPU kept constantly around 10%.
 So i don't acually know where to look for this bottleneck.

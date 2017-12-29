@@ -5,35 +5,10 @@
 #include <unistd.h>     //Used for UART
 #include <fcntl.h>      //Used for UART
 #include <termios.h>    //Used for UART
+#include <time.h>
 
-// to get more information open a shell and call
-// $ man setpriority
 #include <sys/time.h>
 #include <sys/resource.h>
-
-//At bootup, pins 8 and 10 are already set to UART0_TXD, UART0_RXD (ie the alt0 function) respectively
-//The flags (defined in fcntl.h):
-//  Access modes (use 1 of these):
-//    O_RDONLY - Open for reading only.
-//    O_RDWR - Open for reading and writing.
-//    O_WRONLY - Open for writing only.
-//
-//  O_NDELAY / O_NONBLOCK (same function) - Enables nonblocking mode. When set read requests on the file can return immediately with a failure status
-//                      if there is no input immediately available (instead of blocking). Likewise, write requests can also return
-//                      immediately with a failure status if the output can't be written immediately.
-//
-//  O_NOCTTY - When set and path identifies a terminal device, open() shall not cause the terminal device to become the controlling terminal for the process.
-
-//CONFIGURE THE UART
-//The flags (defined in /usr/include/termios.h - see http://pubs.opengroup.org/onlinepubs/007908799/xsh/termios.h.html):
-//  Baud rate:- B1200, B2400, B4800, B9600, B19200, B38400, B57600, B115200, B230400, B460800, B500000, B576000, B921600, B1000000, B1152000, B1500000, B2000000, B2500000, B3000000, B3500000, B4000000
-//  CSIZE:- CS5, CS6, CS7, CS8
-//  CLOCAL - Ignore modem status lines
-//  CREAD - Enable receiver
-//  IGNPAR = Ignore characters with parity errors
-//  ICRNL - Map CR to NL on input (Use for ASCII comms where you want to auto correct end of line characters - don't use for bianry comms!)
-//  PARENB - Parity enable
-//  PARODD - Odd parity (else even)
 
 #define BUFFER_SIZE 2048
 #define RUN_INFINITELY -1
@@ -41,6 +16,71 @@
 static volatile int running = 1;
 void process_step(int);
 void int_signal_handler(int);
+
+#ifdef USE_BPS
+
+struct timeval rt1;
+clock_t t1;
+void setup_time() {
+  t1 = clock();
+  gettimeofday(&rt1, NULL);
+}
+
+void process_step(int fd) {
+  static struct timeval rt2;
+  static clock_t t2;
+  static long bytes_read = 0;
+  static long zeros_read = 0;
+  static unsigned char rx_buffer[BUFFER_SIZE];
+  if (fd != -1) {
+    int rx_length = read(fd, (void*)rx_buffer, BUFFER_SIZE);
+    if (rx_length < 0) {
+      printf("ERROR<\r");
+    } else if (rx_length == 0) {
+      zeros_read++;
+    } else {
+      t2 = clock();
+      gettimeofday(&rt2, NULL);
+      float cpu_elapsed = ((float)(t2 - t1) / CLOCKS_PER_SEC );
+      long elapsed = (long int)rt2.tv_sec - (long int)rt1.tv_sec;
+      bytes_read += rx_length;
+      float rate = (float) bytes_read / elapsed;
+      float cpu_rate = (float) bytes_read / cpu_elapsed;
+      rx_buffer[rx_length] = '\0';
+      printf("stats:    rate = %2.1fkB/s    time = %2lds    bytes = %ldkB    zeros=%ld    cpurate = %2.1fkB/s    cputime = %2.0fs    \r",
+        rate / 1000,
+        elapsed,
+        bytes_read / 1000,
+        zeros_read,
+        cpu_rate / 1000,
+        cpu_elapsed
+      );
+    }
+  } else {
+    printf("nothing to read\r");
+  }
+}
+
+#else
+
+void process_step(int fd) {
+  static unsigned char rx_buffer[BUFFER_SIZE];
+  if (fd != -1) {
+    int rx_length = read(fd, (void*)rx_buffer, BUFFER_SIZE);
+    if (rx_length < 0) {
+      printf("no bytes to read (error)\n");
+    } else if (rx_length == 0) {
+      printf("zero bytes to read (empty)\n");
+    } else {
+      rx_buffer[rx_length] = '\0';
+      printf("%s", rx_buffer);
+    }
+  } else {
+    printf("nothing to read\n");
+  }
+}
+
+#endif
 
 int main(int argc, char *argv[]) {
   int fd = -1;
@@ -82,35 +122,23 @@ int main(int argc, char *argv[]) {
   options.c_lflag = 0;
   tcflush(fd, TCIFLUSH);
   tcsetattr(fd, TCSANOW, &options);
+
+  #ifdef USE_BPS
+  setup_time();
+  #endif
+
+  signal(SIGINT, int_signal_handler);
   if(read_bytes == RUN_INFINITELY) {
     printf("now reading bytes...\n");
-    signal(SIGINT, int_signal_handler);
     while (running) process_step(fd);
   } else {
     printf("now reading %ld bytes...\n", read_bytes);
-    for (long i = 0; i < read_bytes; i++) process_step(fd);
+    for (long i = 0; i < read_bytes && running; i++) process_step(fd);
   }
   printf("\nclosing port %s...\n", port);
   close(fd);
 
   return 0;
-}
-
-void process_step(int fd) {
-  static unsigned char rx_buffer[BUFFER_SIZE];
-  if (fd != -1) {
-    int rx_length = read(fd, (void*)rx_buffer, BUFFER_SIZE);
-    if (rx_length < 0) {
-      printf("no bytes to read (error)\r");
-    } else if (rx_length == 0) {
-      printf("zero bytes to read (empty)\r");
-    } else {
-      rx_buffer[rx_length] = '\0';
-      printf("%s", rx_buffer);
-    }
-  } else {
-    printf("nothing to read\n");
-  }
 }
 
 void int_signal_handler(int signal) {
