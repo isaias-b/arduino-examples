@@ -12,7 +12,6 @@
 #include "ADC.h"
 #include "Timer.h"
 
-
 const int  sampleRate     = 3000;
 const long serialRate     = 2000000;
 const int  bufferCapacity = 2048;
@@ -20,7 +19,7 @@ RingBuf<MODEL, bufferCapacity> rbuf;
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(serialRate);
+  SerialUSB.begin(serialRate);
 
   Analog::setup();
   Timer::setup(sampleRate, measure);
@@ -28,8 +27,8 @@ void setup() {
 
 void loop() {
   static int counter = 0;
-  bool state = (counter++ >> 5) % 2;
-  digitalWrite(LED_BUILTIN, rbuf.isFull() ? HIGH : LOW);
+  bool state = (counter++ >> 8) % 2;
+  digitalWrite(LED_BUILTIN, state ? HIGH : LOW);
   push();
   delayMicroseconds(5);
 }
@@ -38,16 +37,16 @@ inline void push() {
   while (rbuf.hasElements()) {
     MODEL m = rbuf.pop();
 #ifdef USE_BINARY
-    Serial.write(rbuf.isFull() ? 'f' : 'n');
-    Serial.write(m.bytes, NBYTES);
+    SerialUSB.write(rbuf.isFull() ? 'f' : 'n');
+    SerialUSB.write(m.bytes, NBYTES);
 #else
-    Serial.print(rbuf.size());
+    SerialUSB.print(rbuf.size());
     for (int i = 0; i < NWORDS; i++) {
-      Serial.print('\t');
-      Serial.print(m.words[i], DEC);
+      SerialUSB.print('\t');
+      SerialUSB.print(m.words[i], DEC);
     }
 #endif
-    Serial.write('\n');
+    SerialUSB.write('\n');
   }
 }
 
