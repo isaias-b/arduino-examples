@@ -1,19 +1,11 @@
 //#define USE_DIAGNOSTICS
 //#define USE_BINARY
-//#define USE_SPI
-
-const int sampleRate = 3700;
-const long serialRate = 2000000;
-const long spiClockRate = 12000000;
-const int bufferCapacity = 2048;
 
 //           DIAGNOSTICS
-//           no     yes
-// SPI       23500  16000
+//              no    yes
 // UART bin  20000  17000
-// UART       4400   3000
+// UART txt   4400   3000
 
-#include <SPI.h>
 #include "wiring_private.h"
 #include "Data.h"
 #include "RingBuf.h"
@@ -21,13 +13,14 @@ const int bufferCapacity = 2048;
 #include "Timer.h"
 
 
-SPISettings settings = SPISettings(spiClockRate, MSBFIRST, SPI_MODE0);
+const int  sampleRate     = 3000;
+const long serialRate     = 2000000;
+const int  bufferCapacity = 2048;
 RingBuf<MODEL, bufferCapacity> rbuf;
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(serialRate);
-  SPI.begin();
 
   Analog::setup();
   Timer::setup(sampleRate, measure);
@@ -36,27 +29,12 @@ void setup() {
 void loop() {
   static int counter = 0;
   bool state = (counter++ >> 5) % 2;
-  digitalWrite(LED_BUILTIN, state ? HIGH : LOW);
-#ifdef USE_SPI
-  pushSPI();
-#else
-  pushUART();
-#endif
+  digitalWrite(LED_BUILTIN, rbuf.isFull() ? HIGH : LOW);
+  push();
   delayMicroseconds(5);
 }
 
-inline void pushSPI() {
-  while (rbuf.hasElements()) {
-    MODEL m = rbuf.pop();
-    SPI.beginTransaction(settings);
-    SPI.transfer(rbuf.size());
-    for (int i = 0; i < NBYTES; i++)
-      SPI.transfer(m.bytes[i]);
-    SPI.endTransaction();
-  }
-}
-
-inline void pushUART() {
+inline void push() {
   while (rbuf.hasElements()) {
     MODEL m = rbuf.pop();
 #ifdef USE_BINARY
