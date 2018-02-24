@@ -12,7 +12,7 @@
 #include "ADC.h"
 #include "Timer.h"
 
-const int  sampleRate     = 3000;
+const int  sampleRate     = 250;
 const long serialRate     = 2000000;
 const int  bufferCapacity = 2048;
 RingBuf<MODEL, bufferCapacity> rbuf;
@@ -53,7 +53,7 @@ inline void push() {
 void measure () {
   static long counter = 0;
   MODEL m;
-  m.words[Col::Id] = ++counter % 256;
+  m.words[Col::Id] = ++counter % 4096;
   m.words[Col::Data0] = Analog::read(A0);
   m.words[Col::Data1] = Analog::read(A1);
   m.words[Col::Data2] = Analog::read(A2);
@@ -63,7 +63,7 @@ void measure () {
   long t1 = micros();
   long interruptLength = t1 - t0;
   t0 = t1;
-  m.words[Col::Time] = t1 % 256;
+  m.words[Col::Time] = t1 % 4096;
   m.words[Col::InterruptLength] = interruptLength;
   m.words[Col::SampleLength] = micros() - t1;
 #endif

@@ -1,8 +1,8 @@
 //#define USE_BINARY
 
-const int  sampleRate     = 8000;
+const int  sampleRate     = 250;
 const long serialRate     = 2000000;
-const int NWORDS          = 20;
+const int NWORDS          = 5;
 const int WSIZE           = sizeof(uint16_t);
 const int NBYTES          = NWORDS * WSIZE;
 

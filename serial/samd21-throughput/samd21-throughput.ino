@@ -7,9 +7,9 @@
 // UART bin  20000  17000
 // UART txt   4400   3000
 
-const int  sampleRate     = 3000;
+const int  sampleRate     = 250;
 const long serialRate     = 2000000;
-const int NWORDS          = 4;
+const int NWORDS          = 5;
 const int WSIZE           = sizeof(uint16_t);
 const int NBYTES          = NWORDS * WSIZE;
 
